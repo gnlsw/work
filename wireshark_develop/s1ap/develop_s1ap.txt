@@ -1,0 +1,11 @@
+wireshark编译方法：
+1. centos_7_Everything_1804.iso，进行完全安装。
+2. 下载并安装libpcap-devel的rpm包。
+3. 解压wireshakr 2.5.0的代码，参照docbook/wsdg_src/WSDG_chapter_sources.asciidoc中编译wireshark的步骤验证编译环境，参见build.png
+   ./autogen.sh    ./configure    make
+   
+
+1. S1AP新增一组消息，由ProcedureCode、Initiating Message、Successful Outcome 、Unsuccessful Outcome组成，因此在s1ap.cnf需要增加ProcedureCode，该ProcedureCode的三类消息的名称，并显示在界面。分别参见ProcedureCode.png、define_message_type.png和display_message_type.png。
+2. S1AP中的字段，由各个id定义，如果新增了id，在s1ap.cnf中也需要做对应的增加。分别参见IE_id.png和IE_id_type.png。
+3. 新增的字段合入epan/dissectors/asn1/s1ap中的asn文件，并执行make，重新生成packet-s1ap.h和packet-s1ap.c。
+4. 在wireshark源码根目录执行make，重新编译wireshark。
