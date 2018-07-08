@@ -99,7 +99,7 @@ int main()
     udwRetCode = InitSdbContainer(&g_stSdbContainer, MAX_ITEM_NUM, sizeof(DATA_ITEM));
     if(VOS_OK != udwRetCode)
     {
-        printf("fail to init alg container\r\n");
+        printf("fail to init SDB container\r\n");
         return 0;
     }
 
