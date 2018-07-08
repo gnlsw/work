@@ -88,8 +88,13 @@ VOS_VOID SDB_PrintConflictLink(SDB_CONTAINER *pstSdbContainer);
 int main()
 {
     VOS_UINT32 udwRetCode;
-    VOS_UINT32 udwCount = 0;
     VOS_UINT32 udwIndex;
+    DATA_ITEM  *pstData_1;
+    DATA_ITEM  *pstData_2;
+    DATA_ITEM  *pstData_3;
+    VOS_UINT8 	aucImsi_1[IMSI_LEN] = {0x64, 0x00, 0x01};
+    VOS_UINT8 	aucImsi_2[IMSI_LEN] = {0x64, 0x00, 0x02};
+    // VOS_UINT8 	aucImsi_3[IMSI_LEN] = {0x64, 0x00, 0x03};
 
     udwRetCode = InitSdbContainer(&g_stSdbContainer, MAX_ITEM_NUM, sizeof(DATA_ITEM));
     if(VOS_OK != udwRetCode)
@@ -98,17 +103,28 @@ int main()
         return 0;
     }
 
-    SDB_PrintContainer(&g_stSdbContainer);
-
-    for(udwCount = 0; udwCount < MAX_ITEM_NUM; udwCount++)
+    udwRetCode = SDB_InsertRecord(&g_stSdbContainer, aucImsi_1, &udwIndex, (VOS_VOID**)&pstData_1);
+    if(SDB_SUCCESS != udwRetCode)
     {
-        udwIndex = SDB_AllocItem(&g_stSdbContainer);
-        printf("new item, index = %d\n", udwIndex);
-        SDB_PrintContainer(&g_stSdbContainer);
+    	printf("SDB insert record fail, retcode = %d.", udwRetCode);
     }
+    VOS_MemCpy(pstData_1->aucImsi, aucImsi_1, sizeof(aucImsi_1));
 
-    SDB_FreeItem(&g_stSdbContainer, 0);
+    udwRetCode = SDB_InsertRecord(&g_stSdbContainer, aucImsi_2, &udwIndex, (VOS_VOID**)&pstData_2);
+    if(SDB_SUCCESS != udwRetCode)
+	{
+		printf("SDB insert record fail, retcode = %d.", udwRetCode);
+	}
+    VOS_MemCpy(pstData_2->aucImsi, aucImsi_2, sizeof(aucImsi_2));
+
+    udwRetCode = SDB_InsertRecord(&g_stSdbContainer, aucImsi_2, &udwIndex, (VOS_VOID**)&pstData_3);
+    if(SDB_SUCCESS != udwRetCode)
+	{
+		printf("SDB insert record fail, retcode = %d\n.", udwRetCode);
+	}
+
     SDB_PrintContainer(&g_stSdbContainer);
+    SDB_PrintConflictLink(&g_stSdbContainer);
 
     return 0;
 }
