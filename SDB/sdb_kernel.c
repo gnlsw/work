@@ -16,12 +16,21 @@ typedef void            VOS_VOID;
 #define VOS_OK          0
 #define VOS_ERR         1
 
+#define SDB_SUCCESS     		0
+#define SDB_NOT_FOUND			1
+#define SDB_TABLE_FULL  		2
+#define SDB_DUPLICATE_RECORD 	3
+#define SDB_INVALID_HASH_FUNC   4
 
 #define MAX_NAME_LEN   50
 #define VOS_MemAlloc(size)              malloc(size)
 #define VOS_MemFree(ptr)                free(ptr)
 #define VOS_MemSet(ptr, value, num)     memset(ptr, value, num)
-#define VOS_MemCopy(dst, src, num)      memcopy(dst, src, num)
+#define VOS_MemCpy(dst, src, num)       memcpy(dst, src, num)
+#define VOS_MemCmp(buf1, buf2, num)      memcmp(buf1, buf2, num)
+
+#define IMSI_LEN 	8
+#define MSISDN_LEN	8
 
 typedef enum ENUM_ITEM_STATUS {
     ENUM_ITEM_IDLE = 0,
@@ -44,7 +53,8 @@ typedef struct CONFLICT_LINK_ITEM_STRU {
 } CONFLICT_LINK_ITEM;
 
 typedef struct DATA_ITEM_STRU {
-    VOS_UINT32  udwId;
+    VOS_UINT8 	aucImsi[IMSI_LEN];
+    VOS_UINT8	aucMsisdn[MSISDN_LEN];
     VOS_CHAR    aucName[MAX_NAME_LEN];
 } DATA_ITEM;
 
@@ -67,9 +77,13 @@ SDB_CONTAINER  g_stSdbContainer;
 VOS_UINT32 InitSdbContainer(SDB_CONTAINER *pstSdbContainer, VOS_UINT32 udwNum, VOS_UINT32 udwDataSize);
 VOS_UINT32 SDB_InitIdleLink(SDB_CONTAINER *pstSdbContainer);
 VOS_UINT32 SDB_InitConflictLink(SDB_CONTAINER *pstSdbContainer);
-VOS_VOID SDB_PrintContainer(SDB_CONTAINER *pstSdbContainer);
+VOS_VOID   SDB_PrintContainer(SDB_CONTAINER *pstSdbContainer);
 VOS_UINT32 SDB_AllocItem(SDB_CONTAINER *pstSdbContainer);
 VOS_UINT32 SDB_FreeItem(SDB_CONTAINER *pstSdbContainer, VOS_UINT32 udwIndex);
+VOS_UINT32 SDB_FindRecord(SDB_CONTAINER *pstSdbContainer, VOS_UINT8 *pucKey);
+VOS_UINT32 SDB_InsertRecord(SDB_CONTAINER *pstSdbContainer, VOS_UINT8 *pucKey,
+							VOS_UINT32 *pudwIndex, VOS_VOID **ppstData);
+VOS_VOID SDB_PrintConflictLink(SDB_CONTAINER *pstSdbContainer);
 
 int main()
 {
@@ -211,7 +225,7 @@ VOS_UINT32 SDB_InitConflictLink(SDB_CONTAINER *pstSdbContainer)
 	return VOS_OK;
 }
 
-VOS_UINT32 SdbHashFunc(VOS_UINT8 *pDataMem)
+VOS_UINT32 SdbHashFunc(VOS_UINT8 *pucKey)
 {
 	return 1;
 }
@@ -253,6 +267,29 @@ VOS_VOID SDB_PrintContainer(SDB_CONTAINER *pstSdbContainer)
 	}
 	printf("used link, tail = %u\n", pstSdbContainer->udwUsedTail);
 	fflush(stdout);
+
+    return;
+}
+
+VOS_VOID SDB_PrintConflictLink(SDB_CONTAINER *pstSdbContainer)
+{
+	VOS_UINT32 			udwPos 	= VOS_NULL_DWORD;
+	VOS_UINT32			udwLen  = VOS_NULL;
+	VOS_UINT32			udwConflictOffset 	= VOS_NULL;
+	VOS_UINT8       	*pucPhysicalMem     = VOS_NULL_PTR;
+	CONFLICT_LINK_ITEM 	*pstPosItem  = VOS_NULL_PTR;
+
+	pucPhysicalMem = pstSdbContainer->pucPhysicalMem;
+    udwLen = sizeof(LINK_ITEM) + sizeof(CONFLICT_LINK_ITEM) * MAX_LINK_NUM
+    		+ pstSdbContainer->udwItemSize;
+    udwConflictOffset = sizeof(LINK_ITEM);
+
+	for(udwPos = 0; udwPos < pstSdbContainer->udwMaxNum; udwPos++)
+	{
+		pstPosItem = (CONFLICT_LINK_ITEM *)(pucPhysicalMem + udwPos * udwLen + udwConflictOffset);
+		printf("%-10u | %-10u | %-10u | %u\n", pstPosItem->udwHead,
+				pstPosItem->udwConflictLen, pstPosItem->udwPrev, pstPosItem->udwNext);
+	}
 
     return;
 }
@@ -400,4 +437,123 @@ VOS_UINT32 SDB_FreeItem(SDB_CONTAINER *pstSdbContainer, VOS_UINT32 udwIndex)
     pstLinkItem->enStatus = ENUM_ITEM_IDLE;
 
     return VOS_OK;
+}
+
+VOS_UINT32 SDB_InsertRecord(SDB_CONTAINER *pstSdbContainer, VOS_UINT8 *pucKey,
+							VOS_UINT32 *pudwIndex, VOS_VOID **ppstData)
+{
+	VOS_UINT32			udwRetCode  = SDB_SUCCESS;
+	VOS_UINT32 			udwPos 		= VOS_NULL_DWORD;
+	VOS_UINT32 			udwIndex 	= VOS_NULL_DWORD;
+	VOS_UINT32			udwLen  	= VOS_NULL;
+	VOS_UINT32			udwConflictOffset 	= VOS_NULL;
+	VOS_UINT32			udwDataOffset 		= VOS_NULL;
+	VOS_UINT8       	*pucPhysicalMem     = VOS_NULL_PTR;
+	CONFLICT_LINK_ITEM 	*pstPosItem      	= VOS_NULL_PTR;
+	CONFLICT_LINK_ITEM  *pstNewItem      	= VOS_NULL_PTR;
+	CONFLICT_LINK_ITEM  *pstHeadItem      	= VOS_NULL_PTR;
+
+	udwPos = SdbHashFunc(pucKey);
+	if(udwPos >= pstSdbContainer->udwMaxNum)
+	{
+		printf("hash function return invalid position, udwPos = %d\n", udwPos);
+		return SDB_INVALID_HASH_FUNC;
+	}
+
+	udwRetCode = SDB_FindRecord(pstSdbContainer, pucKey);
+	if(SDB_SUCCESS == udwRetCode)
+	{
+		return SDB_DUPLICATE_RECORD;
+	}
+	else if(SDB_NOT_FOUND != udwRetCode)
+	{
+		return udwRetCode;
+	}
+	//else udwRetCode为SDB_NOT_FOUND，继续处理
+
+
+	pucPhysicalMem = pstSdbContainer->pucPhysicalMem;
+	udwLen = sizeof(LINK_ITEM) + sizeof(CONFLICT_LINK_ITEM) * MAX_LINK_NUM
+				+ pstSdbContainer->udwItemSize;
+	udwConflictOffset = sizeof(LINK_ITEM);
+
+	/* 分配新节点 */
+	udwIndex = SDB_AllocItem(pstSdbContainer);
+	if(udwIndex >= pstSdbContainer->udwMaxNum)
+	{
+		printf("table is full\n");
+		return SDB_TABLE_FULL;
+	}
+
+	/* 在头部插入新节点 */
+	pstPosItem = (CONFLICT_LINK_ITEM *)(pucPhysicalMem + udwPos *   udwLen + udwConflictOffset);
+	pstNewItem = (CONFLICT_LINK_ITEM *)(pucPhysicalMem + udwIndex * udwLen + udwConflictOffset);
+	if(pstPosItem->udwHead >= pstSdbContainer->udwMaxNum)
+	{
+		pstPosItem->udwNext = VOS_NULL_DWORD;
+		pstPosItem->udwPrev = VOS_NULL_DWORD;
+		pstNewItem->udwNext = VOS_NULL_DWORD;
+		pstNewItem->udwPrev = VOS_NULL_DWORD;
+		pstPosItem->udwHead = udwIndex;
+		pstPosItem->udwConflictLen = 1;
+	}
+	else
+	{
+		pstHeadItem = (CONFLICT_LINK_ITEM *)(pucPhysicalMem + pstPosItem->udwHead * udwLen + udwConflictOffset);
+		pstHeadItem->udwPrev = udwIndex;
+		pstNewItem->udwNext = pstPosItem->udwHead;
+		pstNewItem->udwPrev = VOS_NULL_DWORD;
+		pstPosItem->udwHead  = udwIndex;
+		pstPosItem->udwConflictLen++;
+	}
+
+	udwDataOffset = sizeof(LINK_ITEM) + sizeof(CONFLICT_LINK_ITEM) * MAX_LINK_NUM;
+	*pudwIndex = udwIndex;
+	*ppstData = pucPhysicalMem + udwIndex * udwLen + udwDataOffset;
+	return SDB_SUCCESS;
+}
+
+VOS_UINT32 SDB_FindRecord(SDB_CONTAINER *pstSdbContainer, VOS_UINT8 *pucKey)
+{
+	VOS_UINT32 			udwPos = VOS_NULL_DWORD;
+	VOS_UINT32			udwLen   = VOS_NULL;
+	VOS_UINT32			udwConflictOffset = VOS_NULL;
+	VOS_UINT32			udwDataOffset = VOS_NULL;
+	VOS_UINT32			udwIndex	= VOS_NULL_DWORD;
+	VOS_UINT8       	*pucPhysicalMem     = VOS_NULL_PTR;
+	CONFLICT_LINK_ITEM 	*pstPosItem  = VOS_NULL_PTR;
+	CONFLICT_LINK_ITEM 	*pstConflictItem = VOS_NULL_PTR;
+	DATA_ITEM			*pstData = VOS_NULL_PTR;
+	VOS_UINT32			udwRetCode = VOS_OK;
+
+	udwPos = SdbHashFunc(pucKey);
+
+	if(udwPos >= pstSdbContainer->udwMaxNum)
+	{
+		printf("hash function return invalid position, udwPos = %d\n", udwPos);
+		return SDB_INVALID_HASH_FUNC;
+	}
+
+	pucPhysicalMem = pstSdbContainer->pucPhysicalMem;
+	udwLen = sizeof(LINK_ITEM) + sizeof(CONFLICT_LINK_ITEM) * MAX_LINK_NUM
+	    		+ pstSdbContainer->udwItemSize;
+	udwConflictOffset = sizeof(LINK_ITEM);
+	udwDataOffset = sizeof(LINK_ITEM) + sizeof(CONFLICT_LINK_ITEM) * MAX_LINK_NUM;
+
+	/* 遍历冲突链 */
+	pstPosItem = (CONFLICT_LINK_ITEM *)(pucPhysicalMem + udwPos * udwLen + udwConflictOffset);
+	udwIndex = pstPosItem->udwHead;
+	while(udwIndex < pstSdbContainer->udwMaxNum)
+	{
+		pstData = (DATA_ITEM *)(pucPhysicalMem + udwIndex * udwLen + udwDataOffset);
+		udwRetCode = VOS_MemCmp(pstData->aucImsi, pucKey, sizeof(pstData->aucImsi));
+		if(VOS_OK == udwRetCode)
+		{
+			return SDB_SUCCESS;
+		}
+		pstConflictItem = (CONFLICT_LINK_ITEM *)(pucPhysicalMem + udwIndex * udwLen + udwConflictOffset);
+		udwIndex = pstConflictItem->udwNext;
+	}
+
+	return SDB_NOT_FOUND;
 }
