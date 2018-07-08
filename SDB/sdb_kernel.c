@@ -198,9 +198,9 @@ VOS_UINT32 SDB_InitConflictLink(SDB_CONTAINER *pstSdbContainer)
     for(udwCount = 0; udwCount < MAX_LINK_NUM; udwCount++)
     {
         udwOffset = sizeof(LINK_ITEM) + sizeof(CONFLICT_LINK_ITEM) * udwCount;
-        for(udwIndex = 0; udwIndex < pstSdbContainer->udwMaxNum - 1; udwIndex++)
+        for(udwIndex = 0; udwIndex < pstSdbContainer->udwMaxNum; udwIndex++)
         {
-            pstConflictLink = (CONFLICT_LINK_ITEM *)(pucPhysicalMem + udwLen + udwOffset);
+            pstConflictLink = (CONFLICT_LINK_ITEM *)(pucPhysicalMem + udwLen * udwIndex + udwOffset);
             pstConflictLink->udwHead 		= VOS_NULL_DWORD;
             pstConflictLink->udwConflictLen = VOS_NULL;
             pstConflictLink->udwPrev 		= VOS_NULL_DWORD;
