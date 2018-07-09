@@ -508,8 +508,6 @@ VOS_UINT32 SDB_InsertRecord(SDB_CONTAINER *pstSdbContainer, VOS_UINT8 *pucKey,
     pstNewItem = (CONFLICT_LINK_ITEM *)(pucPhysicalMem + udwIndex * udwLen + udwConflictOffset);
     if(pstPosItem->udwHead >= pstSdbContainer->udwMaxNum)
     {
-        pstPosItem->udwNext = VOS_NULL_DWORD;
-        pstPosItem->udwPrev = VOS_NULL_DWORD;
         pstNewItem->udwNext = VOS_NULL_DWORD;
         pstNewItem->udwPrev = VOS_NULL_DWORD;
         pstPosItem->udwHead = udwIndex;
