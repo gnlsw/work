@@ -47,6 +47,7 @@ typedef struct LINK_ITEM_STRU {
 
 typedef struct CONFLICT_LINK_ITEM_STRU {
     VOS_UINT32      udwHead;
+    VOS_UINT32      udwTail;
     VOS_UINT32      udwConflictLen;
     VOS_UINT32      udwPrev;
     VOS_UINT32      udwNext;
@@ -232,6 +233,7 @@ VOS_UINT32 SDB_InitConflictLink(SDB_CONTAINER *pstSdbContainer)
         {
             pstConflictLink = (CONFLICT_LINK_ITEM *)(pucPhysicalMem + udwLen * udwIndex + udwOffset);
             pstConflictLink->udwHead        = VOS_NULL_DWORD;
+            pstConflictLink->udwTail        = VOS_NULL_DWORD;
             pstConflictLink->udwConflictLen = VOS_NULL;
             pstConflictLink->udwPrev        = VOS_NULL_DWORD;
             pstConflictLink->udwNext        = VOS_NULL_DWORD;
@@ -303,7 +305,7 @@ VOS_VOID SDB_PrintConflictLink(SDB_CONTAINER *pstSdbContainer)
     for(udwPos = 0; udwPos < pstSdbContainer->udwMaxNum; udwPos++)
     {
         pstPosItem = (CONFLICT_LINK_ITEM *)(pucPhysicalMem + udwPos * udwLen + udwConflictOffset);
-        printf("%-10u | %-10u | %-10u | %u\n", pstPosItem->udwHead,
+        printf("%-10u | %-10u | %-10u | %-10u | %u\n", pstPosItem->udwHead, pstPosItem->udwTail,
                 pstPosItem->udwConflictLen, pstPosItem->udwPrev, pstPosItem->udwNext);
     }
 
@@ -511,6 +513,7 @@ VOS_UINT32 SDB_InsertRecord(SDB_CONTAINER *pstSdbContainer, VOS_UINT8 *pucKey,
         pstNewItem->udwNext = VOS_NULL_DWORD;
         pstNewItem->udwPrev = VOS_NULL_DWORD;
         pstPosItem->udwHead = udwIndex;
+        pstPosItem->udwTail = udwIndex;
         pstPosItem->udwConflictLen = 1;
     }
     else
