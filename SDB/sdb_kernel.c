@@ -121,7 +121,7 @@ int main()
     udwRetCode = SDB_InsertRecord(&g_stSdbContainer, aucImsi_2, &udwIndex, (VOS_VOID**)&pstData_3);
     if(SDB_SUCCESS != udwRetCode)
     {
-        printf("SDB insert record fail, retcode = %d\n.", udwRetCode);
+        printf("SDB insert record fail, retcode = %d.\n", udwRetCode);
     }
 
     SDB_PrintContainer(&g_stSdbContainer);
